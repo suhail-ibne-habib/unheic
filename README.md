@@ -22,7 +22,7 @@ Open [http://localhost:3000](http://localhost:3000).
 Set this before building so canonical URLs, Open Graph, sitemap, and robots.txt are correct:
 
 ```bash
-NEXT_PUBLIC_SITE_URL=https://your-domain.com
+NEXT_PUBLIC_SITE_URL=https://umheic.online
 ```
 
 ## Scripts
@@ -32,4 +32,7 @@ npm run dev
 npm run build
 npm run start
 ```
-# unheic
+
+## Hostinger
+
+Use **Node.js 20 or 22** in hPanel. The build script is `next build --webpack` because Hostinger’s image is too old for Next.js 16’s native Turbopack binary (`GLIBC_2.29`).
