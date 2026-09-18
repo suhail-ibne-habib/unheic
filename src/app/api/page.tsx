@@ -4,12 +4,12 @@ import { ContentCard, PageHero } from "@/components/page-shell";
 export const metadata: Metadata = {
   title: "Developer API",
   description:
-    "Unheic has no photo upload API by design. Convert HEIC to JPG in the browser with the same client-side engine used on this site.",
+    "Unheic has no photo upload API by design. Convert HEIC, JPG, PNG, WebP, and AVIF in the browser with the same client-side engine used on this site.",
   alternates: { canonical: "/api" },
   openGraph: {
     title: "Unheic Developer API",
     description:
-      "Client-side HEIC to JPG conversion. There is no server endpoint that accepts photos.",
+      "Client-side HEIC, JPG, PNG, WebP, and AVIF conversion. There is no server endpoint that accepts photos.",
     url: "/api",
   },
 };
@@ -36,7 +36,8 @@ export default function ApiPage() {
             <h2 className="text-lg font-semibold text-slate-900">Browser conversion</h2>
             <p className="mt-2">
               This site uses the <code className="rounded bg-slate-100 px-1.5 py-0.5 text-slate-700">heic-to</code>{" "}
-              engine (libheif in WebAssembly) to turn HEIC/HEIF into JPEG:
+              engine (libheif in WebAssembly) to decode HEIC/HEIF, then encodes
+              JPG, PNG, WebP, or AVIF in the browser:
             </p>
             <pre className="mt-4 overflow-x-auto rounded-2xl bg-slate-950 p-4 text-[13px] leading-6 text-slate-100">
 {`import { heicTo } from "heic-to/next";
@@ -51,9 +52,10 @@ const jpg = await heicTo({
           <section>
             <h2 className="text-lg font-semibold text-slate-900">Limits</h2>
             <ul className="mt-2 list-disc space-y-1 pl-5">
-              <li>Up to 50 HEIC or HEIF files per batch</li>
-              <li>JPEG quality from 0.5 to 0.95</li>
-              <li>Optional EXIF copy on the client</li>
+              <li>Up to 50 HEIC, JPG, PNG, WebP, AVIF, or GIF files per batch</li>
+              <li>Output: JPG, PNG, WebP, or AVIF</li>
+              <li>JPEG / WebP / AVIF quality from 0.5 to 0.95</li>
+              <li>Optional EXIF copy on JPG output</li>
               <li>Folder drag-and-drop via the File System Access entries API</li>
             </ul>
           </section>

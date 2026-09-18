@@ -19,10 +19,19 @@ import {
   Trash2,
   WifiOff,
 } from "lucide-react";
-import { convertHeicToJpeg, createPool } from "@/lib/convert";
-import { downloadBlob, filesFromDrop, selectHeicFiles } from "@/lib/files";
-import { formatBytes, toJpgName } from "@/lib/format";
+import { convertImage, createPool } from "@/lib/convert";
+import { downloadBlob, filesFromDrop, selectConvertibleFiles } from "@/lib/files";
+import { formatBytes } from "@/lib/format";
+import {
+  INPUT_FORMATS,
+  OUTPUT_FORMATS,
+  canvasSupportsType,
+  fileExtensionLabel,
+  matchesInput,
+  toOutputName,
+} from "@/lib/formats";
 import { siteConfig } from "@/lib/site";
+import type { ConversionTool } from "@/lib/tools";
 
 const QUALITY_OPTIONS = [
   { value: 0.95, label: "Quality: 95% Maximum" },
@@ -38,6 +47,7 @@ type Job = {
   id: string;
   file: File;
   outputName: string;
+  outputLabel: string;
   status: JobStatus;
   previewUrl?: string;
   blob?: Blob;
@@ -47,7 +57,7 @@ type Job = {
 
 const pool = createPool(3);
 
-export function Converter() {
+export function Converter({ tool }: { tool: ConversionTool }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const jobsRef = useRef<Job[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -56,8 +66,17 @@ export function Converter() {
   const [dragging, setDragging] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [zipping, setZipping] = useState(false);
+  const [avifSupported, setAvifSupported] = useState(true);
 
   jobsRef.current = jobs;
+
+  const inputFormat = INPUT_FORMATS[tool.from];
+  const selectedFormat = OUTPUT_FORMATS[tool.to];
+  const outputFormat = tool.to;
+
+  useEffect(() => {
+    setAvifSupported(canvasSupportsType("image/avif"));
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -80,11 +99,26 @@ export function Converter() {
   }, []);
 
   const convertJob = useCallback(
-    async (job: Job, nextQuality: number, nextKeepExif: boolean) => {
-      updateJob(job.id, { status: "converting", error: undefined });
+    async (
+      job: Job,
+      nextQuality: number,
+      nextKeepExif: boolean,
+    ) => {
+      const target = OUTPUT_FORMATS[tool.to];
+      updateJob(job.id, {
+        status: "converting",
+        error: undefined,
+        outputName: toOutputName(job.file.name, target.ext),
+        outputLabel: target.label,
+      });
       await pool.acquire();
       try {
-        const blob = await convertHeicToJpeg(job.file, nextQuality, nextKeepExif);
+        const blob = await convertImage(
+          job.file,
+          tool.to,
+          nextQuality,
+          nextKeepExif && target.supportsExif,
+        );
         const previewUrl = URL.createObjectURL(blob);
         updateJob(job.id, {
           status: "ready",
@@ -98,22 +132,30 @@ export function Converter() {
           error:
             error instanceof Error
               ? error.message
-              : "Could not convert this HEIC file.",
+              : "Could not convert this image.",
         });
       } finally {
         pool.release();
       }
     },
-    [updateJob],
+    [tool.to, updateJob],
   );
 
   const enqueueFiles = useCallback(
     (incoming: File[]) => {
       const remaining = siteConfig.maxFiles - jobsRef.current.length;
-      const { accepted, skipped, overflow } = selectHeicFiles(incoming, remaining);
+      const { accepted, skipped, overflow } = selectConvertibleFiles(
+        incoming,
+        remaining,
+        (name) => matchesInput(name, tool.from),
+      );
 
       const messages: string[] = [];
-      if (skipped) messages.push(`${skipped} file${skipped === 1 ? "" : "s"} skipped (not HEIC/HEIF).`);
+      if (skipped) {
+        messages.push(
+          `${skipped} file${skipped === 1 ? "" : "s"} skipped (not ${inputFormat.label}).`,
+        );
+      }
       if (overflow > 0) {
         messages.push(`Only ${siteConfig.maxFiles} files can be converted at once.`);
       }
@@ -124,7 +166,8 @@ export function Converter() {
       const created: Job[] = accepted.map((file) => ({
         id: crypto.randomUUID(),
         file,
-        outputName: toJpgName(file.name),
+        outputName: toOutputName(file.name, selectedFormat.ext),
+        outputLabel: selectedFormat.label,
         status: "queued",
       }));
 
@@ -133,7 +176,7 @@ export function Converter() {
         void convertJob(job, quality, keepExif);
       });
     },
-    [convertJob, keepExif, quality],
+    [convertJob, inputFormat.label, keepExif, quality, selectedFormat, tool.from],
   );
 
   const onDrop = async (event: DragEvent<HTMLElement>) => {
@@ -177,7 +220,7 @@ export function Converter() {
         if (job.blob) zip.file(job.outputName, job.blob);
       });
       const archive = await zip.generateAsync({ type: "blob" });
-      downloadBlob(archive, "unheic-converted.zip");
+      downloadBlob(archive, "umheic-converted.zip");
     } finally {
       setZipping(false);
     }
@@ -206,7 +249,7 @@ export function Converter() {
         <input
           ref={inputRef}
           type="file"
-          accept=".heic,.heif,image/heic,image/heif"
+          accept={inputFormat.accept}
           multiple
           className="sr-only"
           onChange={onSelect}
@@ -220,50 +263,63 @@ export function Converter() {
             <CloudUpload className="h-7 w-7" aria-hidden="true" />
           </span>
           <span className="mt-5 text-lg font-semibold text-slate-900 sm:text-xl">
-            Drop your .HEIC or .HEIF files here
+            Drop your {inputFormat.extensions.map((ext) => ext.toUpperCase()).join(" or ")} files here
           </span>
           <span className="mt-1 text-sm text-slate-400">
-            or click to browse from device / iCloud library
+            or click to browse from your device / iCloud library
           </span>
         </button>
 
         <div className="mt-7 flex flex-wrap items-center justify-center gap-2">
           <div className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-2 py-1.5 text-[11px] font-semibold">
             <span className="rounded-md bg-white px-1.5 py-0.5 text-slate-500 shadow-sm">
-              HEIC
+              {inputFormat.label}
             </span>
             <span className="text-slate-400">→</span>
             <span className="rounded-md bg-white px-1.5 py-0.5 text-blue-600 shadow-sm">
-              JPG
+              {selectedFormat.label}
             </span>
           </div>
-          <label className="relative">
-            <span className="sr-only">JPEG quality</span>
-            <select
-              value={quality}
-              onChange={(event) => setQuality(Number(event.target.value))}
-              className="appearance-none rounded-full border border-slate-200 bg-slate-50 py-1.5 pr-8 pl-3 text-[11px] font-medium text-slate-600 outline-none focus:border-blue-400"
-            >
-              {QUALITY_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-            <span className="pointer-events-none absolute top-1/2 right-2.5 -translate-y-1/2 text-slate-400">
-              ▾
+          {selectedFormat.usesQuality ? (
+            <label className="relative">
+              <span className="sr-only">Output quality</span>
+              <select
+                value={quality}
+                onChange={(event) => setQuality(Number(event.target.value))}
+                className="appearance-none rounded-full border border-slate-200 bg-slate-50 py-1.5 pr-8 pl-3 text-[11px] font-medium text-slate-600 outline-none focus:border-blue-400"
+              >
+                {QUALITY_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+              <span className="pointer-events-none absolute top-1/2 right-2.5 -translate-y-1/2 text-slate-400">
+                ▾
+              </span>
+            </label>
+          ) : (
+            <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-[11px] font-medium text-slate-500">
+              Lossless PNG
             </span>
-          </label>
-          <label className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-[11px] font-medium text-slate-600">
-            <input
-              type="checkbox"
-              checked={keepExif}
-              onChange={(event) => setKeepExif(event.target.checked)}
-              className="h-3.5 w-3.5 accent-blue-600"
-            />
-            Keep EXIF
-          </label>
+          )}
+          {selectedFormat.supportsExif ? (
+            <label className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-[11px] font-medium text-slate-600">
+              <input
+                type="checkbox"
+                checked={keepExif}
+                onChange={(event) => setKeepExif(event.target.checked)}
+                className="h-3.5 w-3.5 accent-blue-600"
+              />
+              Keep EXIF
+            </label>
+          ) : null}
         </div>
+        {outputFormat === "avif" && !avifSupported ? (
+          <p className="mt-4 text-sm text-amber-700">
+            This browser cannot encode AVIF. Try Chrome or Edge, or use the JPG or WebP converter.
+          </p>
+        ) : null}
 
         <div className="mt-6 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-[12px] text-slate-400">
           <span className="inline-flex items-center gap-1.5">
@@ -333,7 +389,7 @@ export function Converter() {
                         />
                       ) : (
                         <div className="flex h-full w-full items-center justify-center text-[10px] font-semibold text-slate-400">
-                          HEIC
+                          {fileExtensionLabel(job.file.name)}
                         </div>
                       )}
                     </div>
@@ -347,7 +403,7 @@ export function Converter() {
                       <p className="mt-0.5 text-xs text-slate-400">
                         {formatBytes(job.file.size)}
                         {job.outputSize
-                          ? `  →  ${formatBytes(job.outputSize)} JPG`
+                          ? `  →  ${formatBytes(job.outputSize)} ${job.outputLabel}`
                           : null}
                         {job.error ? `  ·  ${job.error}` : null}
                       </p>
@@ -378,7 +434,9 @@ export function Converter() {
                     {job.status === "error" ? (
                       <button
                         type="button"
-                        onClick={() => void convertJob(job, quality, keepExif)}
+                        onClick={() =>
+                          void convertJob(job, quality, keepExif)
+                        }
                         className="text-xs font-semibold text-rose-500"
                       >
                         Retry

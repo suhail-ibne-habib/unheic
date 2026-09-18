@@ -1,4 +1,3 @@
-import { isHeicFilename } from "./format";
 import { siteConfig } from "./site";
 
 export async function filesFromDrop(dataTransfer: DataTransfer): Promise<File[]> {
@@ -55,11 +54,15 @@ async function readEntry(entry: FileSystemEntry): Promise<File[]> {
   return [];
 }
 
-export function selectHeicFiles(files: File[], remainingSlots: number) {
-  const heic = files.filter((file) => isHeicFilename(file.name));
-  const skipped = files.length - heic.length;
-  const accepted = heic.slice(0, Math.max(0, remainingSlots));
-  const overflow = heic.length - accepted.length;
+export function selectConvertibleFiles(
+  files: File[],
+  remainingSlots: number,
+  isAllowed: (name: string) => boolean,
+) {
+  const convertible = files.filter((file) => isAllowed(file.name));
+  const skipped = files.length - convertible.length;
+  const accepted = convertible.slice(0, Math.max(0, remainingSlots));
+  const overflow = convertible.length - accepted.length;
 
   return {
     accepted,

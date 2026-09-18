@@ -21,7 +21,7 @@ const FEATURES = [
     icon: Zap,
     tint: "bg-indigo-50 text-indigo-600",
     title: "Fast Batch Processing",
-    body: "Multithreaded SIMD web workers utilize your device’s multi-core CPU architecture to decode multiple HEIC streams simultaneously.",
+    body: "Multithreaded conversion utilizes your device’s CPU to decode HEIC with WebAssembly and re-encode JPG, PNG, WebP, or AVIF locally.",
     footnote: "Multithreaded Web Workers",
     footnoteTint: "text-indigo-600",
   },

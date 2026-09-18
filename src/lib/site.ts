@@ -4,7 +4,7 @@ export const siteConfig = {
   url: process.env.NEXT_PUBLIC_SITE_URL ?? "https://umheic.online",
   tagline: "Convert HEIC to JPG Online, Instantly",
   description:
-    "Lightning-fast client-side HEIC to JPG conversion. Your photos never leave your device. No file size limits, no sign-up required.",
+    "Lightning-fast client-side HEIC to JPG conversion. Also convert PNG, WebP, and AVIF — your photos never leave your device.",
   engine: "1.5.2",
   maxFiles: 50,
 } as const;

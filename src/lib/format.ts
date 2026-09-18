@@ -6,10 +6,3 @@ export function formatBytes(bytes: number): string {
   return `${(kb / 1024).toFixed(1)} MB`;
 }
 
-export function toJpgName(name: string): string {
-  return name.replace(/\.(heic|heif)$/i, ".jpg");
-}
-
-export function isHeicFilename(name: string): boolean {
-  return /\.(heic|heif)$/i.test(name);
-}
